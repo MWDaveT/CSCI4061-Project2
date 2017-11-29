@@ -1,18 +1,6 @@
 #include <blather.h>
 
 
-#include <stdio.h>
-#include <unistd.h>
-#include <pthread.h>
-#include <string.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <stdarg.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <signal.h>
-#include <semaphore.h>
 
 
 client_t *server_get_client(server_t *server, int idx)
