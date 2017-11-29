@@ -21,7 +21,15 @@ client_t *server_get_client(server_t *server, int idx)
 // unspecified and may cause a program crash.
  
 {
+	if (idx > server->n_clients){
+		printf("Index for client is out of range, index should not be greater than %/d\n", server->n_clients);
+		return 0;
+	}
+	else
+		return (server->client[idx]);
 }
+
+
 
 void server_start(server_t *server, char *server_name, int perms)
 // Initializes and starts the server with the given name. A join fifo
@@ -31,8 +39,10 @@ void server_start(server_t *server, char *server_name, int perms)
 {
 
 	const char *fifoExt = ".fifo";
-	const char *logFile = "server_name.log";
-	char serverName[MAXPATH];
+	char *logFile[MAXPATH];
+	char *serverName[MAXPATH];
+	int offset;
+	off_t pos;
 	
 	//Advanced area
 	FILE *log;
@@ -48,11 +58,14 @@ void server_start(server_t *server, char *server_name, int perms)
 	server->log_fd= -1;
 	server->log_sem = 0;
 	
+	//Insure that server name is not to long
+	
 	if(sizeof(serverName) < strlen(server_name)){
 		fprintf(stderr, "Name %/s is too long\n", server_name);
 		return 1;
 	}
 	
+	//copy server_name into char array
 	strncpy(serverName, server_name, sizeof(serverName));
 	
 	if (sizeof(serverName) < (strlen(serverName) + strlen(fifoExt)){
@@ -60,9 +73,10 @@ void server_start(server_t *server, char *server_name, int perms)
 		return 1;
 	}
 	
+	//add ".fifo to server_name and set server_name
 	strcat(serverName, fifoExt);
 	server->server_name = serverName;
-	server->join_fd = 0;
+	
 	
 	if(mkfifo(server->name,perms)<0){
 		perror("Failed to make fifo");
@@ -75,6 +89,8 @@ void server_start(server_t *server, char *server_name, int perms)
 	}
 	
 	//Advanced area
+	strcpy(logFile, server_name);
+	strcat(logFile, ".log");
 	if((log = fopen(logFile, "w+"))==NULL){
 		perror("Failed to create log file");
 	}
@@ -82,11 +98,13 @@ void server_start(server_t *server, char *server_name, int perms)
 	{
 		server->log_fd = log;
 	}
-	
+	offset = sizeof(who_t);
 	
 	}
 
 void server_shutdown(server_t *server);
+
+
 int server_add_client(server_t *server, join_t *join);
 int server_remove_client(server_t *server, int idx);
 int server_broadcast(server_t *server, mesg_t *mesg);
