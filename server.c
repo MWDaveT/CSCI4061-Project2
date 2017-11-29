@@ -46,7 +46,7 @@ void server_start(server_t *server, char *server_name, int perms)
 	server->client = NULL;
 	server->time_sec = 0;
 	server->log_fd= -1;
-	server->log_sem = NULL;
+	server->log_sem = 0;
 	
 	if(sizeof(serverName) < strlen(server_name)){
 		fprintf(stderr, "Name %/s is too long\n", server_name);
