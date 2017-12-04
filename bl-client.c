@@ -45,7 +45,7 @@ int main(int argc, char *argv[]){
 	char sfifoname[MAXPATH];
 	char serverFifo[MAXPATH];
 	int toclientFifo_fd, toserverFifo_fd, server_fifo_fd;
-	mesg_t serv_mesg;
+	
 	
 	
 	//pthread_t clientThread, serverThread; 
@@ -71,18 +71,13 @@ int main(int argc, char *argv[]){
 	strcpy(join.to_client_fname, cfifoname);
 	strcpy(join.to_server_fname, sfifoname);
 
-	//write to join fifo
-	//if((server_fifo_fd = open(serverFifo, DEFAULT_PERMS)) == -1){
-	//	perror("Failed to open server fifo");
-	//	return 1;
-	//}
+	
 	
 	mkfifo(cfifoname,DEFAULT_PERMS);	
 	if((toclientFifo_fd = open(cfifoname, O_RDWR)) == -1){
 		perror("Failed to open client fifo");
 		return 1;
 	}
-	
 	mkfifo(sfifoname, DEFAULT_PERMS);
 	if ((toserverFifo_fd = open(sfifoname, O_RDWR)) == -1){
 		perror("Failed to open server fifo");
@@ -90,15 +85,13 @@ int main(int argc, char *argv[]){
 	}
 	int serverfd = open(serverFifo, O_RDWR);
 	write(serverfd, &join, sizeof(join));
-	printf("Im here\n");
 	while(1){
-		printf("Reading or trying\n");
-		read(toclientFifo_fd, &serv_mesg, sizeof(mesg_t));
-		printf("%d\n", serv_mesg.kind);
-		//if(mesg.kind == 20)
-		//{
+		mesg_t serv_mesg;
+		read(toclientFifo_fd, &serv_mesg, sizeof(serv_mesg));
+		if(serv_mesg.kind == 20)
+		{
 			printf("-- %s JOINED --\n", serv_mesg.name);
-		//}
+		}
 	}
 
 	return 0;

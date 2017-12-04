@@ -19,7 +19,8 @@ int main(int argc, char *argv[]){
 	
 	server_t *server = malloc(sizeof(server_t));
 	join_t join;
-	mesg_t *mesg = malloc(sizeof(mesg_t));
+	//mesg_t *mesg = malloc(sizeof(mesg_t));
+	mesg_t mesg;
 	
 	int maxfd, n;
 	fd_set join_set, client_set;
@@ -42,9 +43,6 @@ int main(int argc, char *argv[]){
 	FD_ZERO(&join_set);
 	FD_SET(server->join_fd, &join_set);
 	maxfd = server->join_fd;
-	printf("FD is %d\n", maxfd);
-	printf("returned from server add\n");
-	printf("Number of clients: %d\n", server->n_clients);
 	while(!signaled){
 		//check for join requests
 		select(maxfd+1, &join_set, NULL, NULL, NULL);
@@ -52,8 +50,10 @@ int main(int argc, char *argv[]){
 			read(maxfd, &join, sizeof(join));
 		if(server_add_client(server, &join) < 0)
 			printf("Currently at maxinum number of clients\n");
-		printf("%s has joined\n", server->client[server->n_clients -1].name);
-		if((server_broadcast(server, mesg)) < 0){
+		mesg.kind = BL_JOINED;
+		strcpy(mesg.name,server->client[server->n_clients -1].name);
+		strcpy(mesg.body, "");
+		if((server_broadcast(server, &mesg)) < 0){
 			printf("Failed to Broadcast messages\n");
 			break;
 		}

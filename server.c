@@ -161,9 +161,7 @@ int i;
 
 	for (i = 0; i < server->n_clients; i++){
 		
-		printf("Broadcast Mesg name %s\n", mesg->name);
-		printf("Broadcast fd is %d\n", server->client[i].to_client_fd);
-		write(server->client[i].to_client_fd, &mesg, sizeof(mesg_t));
+		write(server->client[i].to_client_fd, mesg, sizeof(mesg_t));
 	}
 	
 	return 0;
