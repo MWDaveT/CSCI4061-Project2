@@ -14,6 +14,7 @@
 #include <semaphore.h>
 
 
+
 #include "blather.h"
 
 int error;
@@ -59,18 +60,19 @@ int main(int argc, char *argv[]){
 	printf("Server name is %s\n", serverFifo);
 	sprintf(cfifoname,"%d%s",clientpid,cFifo);
 	sprintf(sfifoname, "%d%s", clientpid,sFifo);
-
+	
 	strcpy(join.name, argv[2]);
 	strcpy(join.to_client_fname, cfifoname);
 	strcpy(join.to_server_fname, sfifoname);
 
+printf("I made it here\n");
 	//write to join fifo
-//	if((server_fifo_fd = open(serverFifo, DEFAULT_PERMS)) == -1){
-//		perror("Failed to open server fifo");
-//		return 1;
-//	}
-//	write(server_fifo_fd, join, sizeof(join));
-
+	//if((server_fifo_fd = open(serverFifo, DEFAULT_PERMS)) == -1){
+	//	perror("Failed to open server fifo");
+	//	return 1;
+	//}
+	
+	printf("Cleint fifo %s\n", join.to_client_fname);
 
 	mkfifo(cfifoname,DEFAULT_PERMS);	
 	if((toclientFifo_fd = open(cfifoname, O_RDWR)) == -1){
@@ -83,7 +85,10 @@ int main(int argc, char *argv[]){
 		perror("Failed to open server fifo");
 		return 1;
 	}
-	
+	int serverfd = open(serverFifo, O_RDWR);
+	write(serverfd, &join, sizeof(join));
+	while(1){
+	}
 
 	return 0;
 }

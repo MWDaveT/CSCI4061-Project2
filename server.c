@@ -1,4 +1,5 @@
 #include "blather.h"
+#include <errno.h>
 
 
 
@@ -32,6 +33,7 @@ void server_start(server_t *server, char *server_name, int perms)
 	//char serFIFO[MAXPATH+5];
 	//int offset;
 	//off_t pos;
+	int joinfd;
 	
 	//Advanced area
 	//FILE log;
@@ -42,7 +44,7 @@ void server_start(server_t *server, char *server_name, int perms)
 	server->join_fd = -1;
 	server->join_ready = 0;
 	server->n_clients = 0;
-	//server->client = {};
+
 	server->time_sec = 0;
 	server->log_fd= -1;
 	server->log_sem = 0;
@@ -58,19 +60,34 @@ void server_start(server_t *server, char *server_name, int perms)
 	//add ".fifo to server_name and set server_name
 	
 	strcpy(server->server_name, server_name);
+	printf("Serve is: %s\n", server->server_name);
+	printf("FIFO name is :%s\n", serverName);
 	
+	if(mkfifo(serverName, perms) == -1){
+		if (errno != EEXIST){
+			perror("Failed to make server fifo\n");
+			return;
+		}
+		else
+		{	//error caused by fifo already being there
+			//so will unlink and remake fifo
+			
+			if (unlink(serverName) < 0){
+				perror("unlink of fifo failed\n");
+				return;
+			}
+			if(mkfifo(serverName, perms) == -1){
+				perror("Failed to make server fifo");
+				return;
+			}
+		}
 	
-	if(mkfifo(serverName, perms)<0){
-		perror("Failed to make server fifo");
-		//return 1;
 	}
 	
-	if((server->join_fd = open(serverName, perms)) == -1){
-		perror("Failed to open server fifo\n");
-		//return 1;
-	}
+	 
+	return;
 	
-	//Advanced area
+	// area
 	//strcpy(logFile, server_name);
 	//strcat(logFile, ".log");
 	//if((log = fopen(logFile, "w+"))==NULL){
@@ -89,12 +106,12 @@ void server_start(server_t *server, char *server_name, int perms)
 
 int server_add_client(server_t *server, join_t *join){
 	
-	int clientIndex = server->n_clients - 1;
-	
-	if(server->n_clients == MAXCLIENTS)
+	int clientIndex = server->n_clients;
+	server->n_clients = server->n_clients + 1;
+	if(server->n_clients > MAXCLIENTS)
 		return -1;
 	else {
-		server->n_clients = server->n_clients + 1;
+		
 		strcpy(server->client[clientIndex].name, join->name);
 		strcpy(server->client[clientIndex].to_server_fname, join->to_server_fname);
 		strcpy(server->client[clientIndex].to_client_fname, join->to_client_fname);
@@ -107,9 +124,10 @@ int server_add_client(server_t *server, join_t *join){
 			perror("Failed to open to server fifo");
 			return -1;
 		}
-		server->client[clientIndex].data_ready = 0;
+		server->client[clientIndex].data_ready = 10;
 		server->client[clientIndex].last_contact_time = time(NULL);
 		server->time_sec = time(NULL);
+		printf("Client data ready: %s\n", server->client[clientIndex].to_server_fname);
 	}
 	return 0;
 }		
