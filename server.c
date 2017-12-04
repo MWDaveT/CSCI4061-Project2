@@ -116,18 +116,17 @@ int server_add_client(server_t *server, join_t *join){
 		strcpy(server->client[clientIndex].to_server_fname, join->to_server_fname);
 		strcpy(server->client[clientIndex].to_client_fname, join->to_client_fname);
 		
-		if((server->client[clientIndex].to_client_fd = open(join->to_client_fname, O_RDWR)) == -1){
+		if((server->client[clientIndex].to_client_fd = open(server->client[clientIndex].to_client_fname, O_RDWR)) == -1){
 			perror("Failed to open to client fifo");
 			return -1;
 		}
-		if((server->client[clientIndex].to_server_fd = open(join->to_server_fname, O_RDWR)) == -1){
+		if((server->client[clientIndex].to_server_fd = open(server->client[clientIndex].to_server_fname, O_RDWR)) == -1){
 			perror("Failed to open to server fifo");
 			return -1;
 		}
-		server->client[clientIndex].data_ready = 10;
+		server->client[clientIndex].data_ready = 1;
 		server->client[clientIndex].last_contact_time = time(NULL);
 		server->time_sec = time(NULL);
-		printf("Client data ready: %s\n", server->client[clientIndex].to_server_fname);
 	}
 	return 0;
 }		
@@ -150,7 +149,7 @@ int server_remove_client(server_t *server, int idx){
 }
 
 
-//int server_broadcast(server_t *server, mesg_t *mesg){
+int server_broadcast(server_t *server, mesg_t *mesg){
 
 // Send the given message to all clients connected to the server by
 // writing it to the file descriptors associated with them.
@@ -158,10 +157,18 @@ int server_remove_client(server_t *server, int idx){
 // ADVANCED: Log the broadcast message unless it is a PING which
 // should not be written to the log.
 
-//int i;
+int i;
 
-//	for (i = 0; i < sever->n_clients; i++){
-//		
+	for (i = 0; i < server->n_clients; i++){
+		
+		printf("Broadcast Mesg name %s\n", mesg->name);
+		printf("Broadcast fd is %d\n", server->client[i].to_client_fd);
+		write(server->client[i].to_client_fd, &mesg, sizeof(mesg_t));
+	}
+	
+	return 0;
+}
+		
 
 
 //void server_check_sources(server_t *server){

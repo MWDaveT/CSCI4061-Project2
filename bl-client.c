@@ -17,17 +17,10 @@
 
 #include "blather.h"
 
-int error;
-pid_t clientpid;
-join_t join;
-const char *cFifo = ".client.fifo";
-const char *sFifo = ".server.fifo";
-const char *serExt = ".fifo";
-char cfifoname[MAXPATH];
-char sfifoname[MAXPATH];
-char serverFifo[MAXPATH];
-int toclientFifo_fd, toserverFifo_fd, server_fifo_fd;
-//pthread_t clientThread, serverThread; 
+
+
+
+
 
 //void *user(int *fd){
 //	while(1){
@@ -41,10 +34,25 @@ int toclientFifo_fd, toserverFifo_fd, server_fifo_fd;
 
 
 int main(int argc, char *argv[]){
-	 
-	 //join->name[MAXPATH] = NULL;
 	
+	int error;
+	pid_t clientpid;
+	join_t join;
+	const char *cFifo = ".client.fifo";
+	const char *sFifo = ".server.fifo";
+	const char *serExt = ".fifo";
+	char cfifoname[MAXPATH];
+	char sfifoname[MAXPATH];
+	char serverFifo[MAXPATH];
+	int toclientFifo_fd, toserverFifo_fd, server_fifo_fd;
+	mesg_t serv_mesg;
+	
+	
+	//pthread_t clientThread, serverThread; 
+	
+	 //join->name[MAXPATH] = NULL;	
 	//turn off output buffering
+	
 	setvbuf(stdout, NULL, _IONBF, 0);
 	
 	//check to make sure input is correct
@@ -57,23 +65,18 @@ int main(int argc, char *argv[]){
 	clientpid = getpid();
 	strcpy(serverFifo, argv[1]);
 	strcat(serverFifo, serExt);
-	printf("Server name is %s\n", serverFifo);
 	sprintf(cfifoname,"%d%s",clientpid,cFifo);
 	sprintf(sfifoname, "%d%s", clientpid,sFifo);
-	
 	strcpy(join.name, argv[2]);
 	strcpy(join.to_client_fname, cfifoname);
 	strcpy(join.to_server_fname, sfifoname);
 
-printf("I made it here\n");
 	//write to join fifo
 	//if((server_fifo_fd = open(serverFifo, DEFAULT_PERMS)) == -1){
 	//	perror("Failed to open server fifo");
 	//	return 1;
 	//}
 	
-	printf("Cleint fifo %s\n", join.to_client_fname);
-
 	mkfifo(cfifoname,DEFAULT_PERMS);	
 	if((toclientFifo_fd = open(cfifoname, O_RDWR)) == -1){
 		perror("Failed to open client fifo");
@@ -87,7 +90,15 @@ printf("I made it here\n");
 	}
 	int serverfd = open(serverFifo, O_RDWR);
 	write(serverfd, &join, sizeof(join));
+	printf("Im here\n");
 	while(1){
+		printf("Reading or trying\n");
+		read(toclientFifo_fd, &serv_mesg, sizeof(mesg_t));
+		printf("%d\n", serv_mesg.kind);
+		//if(mesg.kind == 20)
+		//{
+			printf("-- %s JOINED --\n", serv_mesg.name);
+		//}
 	}
 
 	return 0;
