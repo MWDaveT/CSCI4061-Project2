@@ -4,19 +4,19 @@
 
 
 
-//client_t *server_get_client(server_t *server, int idx)
+client_t *server_get_client(server_t *server, int idx)
 // Gets a pointer to the client_t struct at the given index. If the
 // index is beyond n_clients, the behavior of the function is
 // unspecified and may cause a program crash.
  
-//{
-//	if (idx > server->n_clients){
-//		printf("Index for client is out of range, index should not be greater than %d\n", server->n_clients);
-//		return 0;
-//	}
-//	else
-//		return (server->client[idx]);
-//}
+{
+	if (idx > server->n_clients){
+		printf("Index for client is out of range, index should not be greater than %d\n", server->n_clients);
+		return 0;
+	}
+	else
+		return (&server->client[idx]);
+}
 
 
 
@@ -28,19 +28,19 @@ void server_start(server_t *server, char *server_name, int perms)
 {
 
 	const char *fifoExt = ".fifo";
-	//char logFile[MAXPATH];
+	char logFile[MAXPATH];
 	char serverName[MAXPATH];
 	//char serFIFO[MAXPATH+5];
-	//int offset;
-	//off_t pos;
+	int offset;
+	off_t pos;
 	int joinfd;
 	
 	//Advanced area
-	//FILE log;
+	FILE *log;
 	
 	//initialize server struct
 	
-	//server->server_name = {};
+	
 	server->join_fd = -1;
 	server->join_ready = 0;
 	server->n_clients = 0;
@@ -83,25 +83,53 @@ void server_start(server_t *server, char *server_name, int perms)
 		}
 	
 	}
+
 	
-	 
+	// Advanced area
+	strcpy(logFile, server_name);
+	strcat(logFile, ".log");
+	log = fopen(logFile, "a+");
+	if (log == NULL){
+		perror("Failed to create log file");
+		return;
+	}
+	else
+	{
+		server->log_fd = open(logFile, O_RDWR);
+	}
+	offset = sizeof(who_t);
+	
 	return;
-	
-	// area
-	//strcpy(logFile, server_name);
-	//strcat(logFile, ".log");
-	//if((log = fopen(logFile, "w+"))==NULL){
-	//	perror("Failed to create log file");
-	//}
-	//else
-	//{
-	//	server->log_fd = open(log, O_RDWR);
-	//}
-	//offset = sizeof(who_t);
-	
 	}
 
-//void server_shutdown(server_t *server);
+void server_shutdown(server_t *server){
+	int i, idx;
+	char serverName[MAXPATH];
+	char logFile[MAXPATH];
+	mesg_t sd_mesg;
+	
+	
+	sd_mesg.kind = BL_SHUTDOWN;
+	strcpy(sd_mesg.name, "");
+	strcpy(sd_mesg.body, "");
+	server_broadcast(server, &sd_mesg);
+	idx = server->n_clients - 1;
+	for(i=idx;i>0;i--){
+		server_remove_client(server, idx);
+	}
+	strcpy(serverName, server->server_name);
+	strcat(serverName, ".fifo");
+	strcpy(logFile, server->server_name);
+	strcat(logFile, ".log");
+	close(server->join_fd);
+	remove(serverName);
+	close(server->log_fd);
+	remove(logFile);
+	
+	
+		
+	
+}
 
 
 int server_add_client(server_t *server, join_t *join){

@@ -14,15 +14,15 @@ int main(int argc, char *argv[]){
 	my_sa.sa_handler = handle_signals;
 	sigemptyset(&my_sa.sa_mask);
 	my_sa.sa_flags = SA_RESTART;
-	//sigaction(SIGTERM, &my_sa, NULL);
-	//sigaction(SIGINT, &my_sa, NULL);
+	sigaction(SIGTERM, &my_sa, NULL);
+	sigaction(SIGINT, &my_sa, NULL);
 	
-	server_t *server = malloc(sizeof(server_t));
+	server_t server;
+	//server_t *server = malloc(sizeof(server_t));
 	join_t join;
-	//mesg_t *mesg = malloc(sizeof(mesg_t));
 	mesg_t mesg;
 	
-	int maxfd, n;
+	int maxfd;
 	fd_set join_set, client_set;
 	char server_name[MAXPATH];
 	char serverPath[MAXPATH];
@@ -36,29 +36,29 @@ int main(int argc, char *argv[]){
 		exit(1);
 	}
 	strcpy(server_name, argv[1]);
-	server_start(server, server_name, DEFAULT_PERMS);
+	server_start(&server, server_name, DEFAULT_PERMS);
 	strcpy(serverPath, server_name);
 	strcat(serverPath, ".fifo");
-	server->join_fd = open(serverPath, O_RDWR);
+	server.join_fd = open(serverPath, O_RDWR);
 	FD_ZERO(&join_set);
-	FD_SET(server->join_fd, &join_set);
-	maxfd = server->join_fd;
+	FD_SET(server.join_fd, &join_set);
+	maxfd = server.join_fd;
 	while(!signaled){
 		//check for join requests
 		select(maxfd+1, &join_set, NULL, NULL, NULL);
-		if(FD_ISSET(server->join_fd, &join_set))
+		if(FD_ISSET(server.join_fd, &join_set))
 			read(maxfd, &join, sizeof(join));
-		if(server_add_client(server, &join) < 0)
+		if(server_add_client(&server, &join) < 0)
 			printf("Currently at maxinum number of clients\n");
 		mesg.kind = BL_JOINED;
-		strcpy(mesg.name,server->client[server->n_clients -1].name);
+		strcpy(mesg.name,server.client[server.n_clients -1].name);
 		strcpy(mesg.body, "");
-		if((server_broadcast(server, &mesg)) < 0){
+		if((server_broadcast(&server, &mesg)) < 0){
 			printf("Failed to Broadcast messages\n");
 			break;
-		}
-		n = 2;
+			}
 		
 	}
+	server_shutdown(&server);
 	return 0;
 }
