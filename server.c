@@ -206,7 +206,11 @@ int i;
 // which sources are ready.
 
 	
-//int server_join_ready(server_t *server);
+int server_join_ready(server_t *server){
+	return(server.join_ready);
+}
+
+
 //int server_handle_join(server_t *server);
 //int server_client_ready(server_t *server, int idx);
 //int server_handle_client(server_t *server, int idx);
