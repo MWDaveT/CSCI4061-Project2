@@ -19,8 +19,8 @@ int main(int argc, char *argv[]){
 	sigaction(SIGTERM, &my_sa, NULL);
 	sigaction(SIGINT, &my_sa, NULL);
 	
+	//struct declarations
 	server_t server;
-	//server_t *server = malloc(sizeof(server_t));
 	join_t join;
 	mesg_t mesg;
 	
@@ -37,25 +37,35 @@ int main(int argc, char *argv[]){
 		printf("usage: %s <server name>\n", argv[0]);
 		exit(1);
 	}
+	
+	//copy input
 	strcpy(server_name, argv[1]);
 	server_start(&server, server_name, DEFAULT_PERMS);
 	strcpy(serverPath, server_name);
 	strcat(serverPath, ".fifo");
+	
+	//open for reading join fifo
 	server.join_fd = open(serverPath, O_RDWR);
 	
 	while(!signaled){
 		
 		server_tick(&server);
-		//printf("Time since server started %d\n", server.time_sec);
+		
+		printf("Time since server started %d\n", server.time_sec);
+		
 		server_check_sources(&server);
+		
 		if(server_join_ready(&server)){
-			
-			if((server_handle_join(&server))==-1)
+			if((server_handle_join(&server))==-1){
 				printf("Join failed, to many clients\n");
+			}
 			sleep(5);
 			}
+		printf("Number of clients %d\n", server.n_clients);
 		for(i=0; i<server.n_clients; i++){
+			printf("in client loop\n");
 			if(server_client_ready(&server, i)){
+				printf("Off to handle client\n");
 				server_handle_client(&server, i);
 			}
 		}

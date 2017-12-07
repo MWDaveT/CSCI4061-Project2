@@ -91,6 +91,7 @@ typedef struct{
 } simpio_t;
 
 
+
 // server.c
 client_t *server_get_client(server_t *server, int idx);
 void server_start(server_t *server, char *server_name, int perms);

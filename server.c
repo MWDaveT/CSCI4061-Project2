@@ -3,8 +3,6 @@
 #include <errno.h>
 
 
-
-
 client_t *server_get_client(server_t *server, int idx)
 // Gets a pointer to the client_t struct at the given index. If the
 // index is beyond n_clients, the behavior of the function is
@@ -151,7 +149,7 @@ int server_add_client(server_t *server, join_t *join){
 		perror("Failed to open to server fifo");
 		return -1;
 	}
-	server->client[clientIndex].data_ready = 1;
+	server->client[clientIndex].data_ready = 0;
 	server->client[clientIndex].last_contact_time = time(NULL);
 	
 	return clientIndex;
@@ -184,13 +182,11 @@ int server_broadcast(server_t *server, mesg_t *mesg){
 // should not be written to the log.
 
 int i;
-	printf("In server broadcast\n");
 
 	for (i = 0; i < server->n_clients; i++){
-		printf("In server broadcast loop\n");
+		
 		write(server->client[i].to_client_fd, mesg, sizeof(mesg_t));
 	}
-	
 	return 0;
 }
 		
@@ -261,7 +257,8 @@ int server_handle_join(server_t *server){
 	int index, maxfd;
 	join_t join;
 	
-	read(server->join_fd, &join, sizeof(join));
+	read(server->join_fd, &join, sizeof(join_t));
+	printf("Passed read in handle join\n");
 	if((index = server_add_client(server, &join)) < 0){
 		printf("Currently at maxinum number of clients\n");
 		return 0;
@@ -270,6 +267,7 @@ int server_handle_join(server_t *server){
 	mesg_t mesg;
 	mesg.kind = BL_JOINED;
 	strcpy(mesg.name, server->client[index].name);
+	printf("Heading to broadcast join\n");
 	server_broadcast(server, &mesg);
 	
 	return 0;
@@ -277,10 +275,19 @@ int server_handle_join(server_t *server){
 	
 
 int server_client_ready(server_t *server, int idx){
+	
 	return(server->client[idx].data_ready);
 }
 
 int server_handle_client(server_t *server, int idx){
+	
+	mesg_t fr_client_mesg;
+	
+	read(server->client[idx].to_server_fd, &fr_client_mesg, sizeof(mesg_t));
+	if(fr_client_mesg.kind != 60){
+		server_broadcast(server, &fr_client_mesg);
+	}
+	server->client[idx].data_ready = 0;
 	return 0;
 }
 
@@ -289,6 +296,7 @@ void server_tick(server_t *server){
 	time_t  ctime;
 	ctime = time(NULL);
 	server->time_sec = (ctime - server->time_sec);
+	return;
 }
 
 //void server_ping_clients(server_t *server);

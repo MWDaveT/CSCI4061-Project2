@@ -17,19 +17,67 @@
 
 #include "blather.h"
 
+typedef struct{
+		char name[MAXNAME];
+		int to_ser_fd;
+		int to_clie_fd;
+} blclient_t;
+
+simpio_t simpio_actual;
+simpio_t *simpio = &simpio_actual;
 
 
 
+void *fromClient(void *client_bl){
+	blclient_t *bl_client = (blclient_t*) client_bl;
+	int count = 1;
+	mesg_t send_mesg;
+	
+	while(!simpio->end_of_input){
+		simpio_reset(simpio);
+		iprintf(simpio,"");
+		while(!simpio->line_ready && !simpio->end_of_input){
+			simpio_get_char(simpio);
+		}
+		if(simpio->line_ready){
+			send_mesg.kind = BL_MESG;
+			strcpy(send_mesg.name, bl_client->name);
+			strcpy(send_mesg.body, simpio->buf);
+			write(bl_client->to_ser_fd, &send_mesg, sizeof(mesg_t));
+		}
+	}
+	return NULL;
+}
 
-
-//void *user(int *fd){
-//	while(1){
-//		
-//	}
-//	
-//	}
-
-//void *server(int *fd){}
+void *fromServer(void *client_bl){
+	
+	blclient_t *bl_client = (blclient_t*) client_bl;
+	mesg_t rec_mesg;
+	char textbody[MAXNAME + MAXLINE +5];
+	
+	while(1){
+		read(bl_client->to_clie_fd, &rec_mesg, sizeof(mesg_t));
+		if(rec_mesg.kind == 10){
+			iprintf(simpio, "[%s] : %s\n", rec_mesg.name, rec_mesg.body);
+		}
+		else if (rec_mesg.kind == 20){
+			iprintf(simpio, "-- %s JOINED --\n", rec_mesg.name);
+		}
+		else if (rec_mesg.kind == 30){
+			iprintf(simpio, "-- %s DEPARTED --\n", rec_mesg.name);
+		}
+		else if (rec_mesg.kind == 40){
+			iprintf(simpio, "!!! server is shutting down !!!\n");
+		}
+		else if (rec_mesg.kind == 50){
+			iprintf(simpio, "-- %s DISCONNECTED --\n", rec_mesg.name);
+		}
+		else
+		{}
+	}
+		
+	return NULL;
+}
 
 
 
@@ -38,13 +86,17 @@ int main(int argc, char *argv[]){
 	int error;
 	pid_t clientpid;
 	join_t join;
+	blclient_t client_bl;
 	const char *cFifo = ".client.fifo";
 	const char *sFifo = ".server.fifo";
 	const char *serExt = ".fifo";
 	char cfifoname[MAXPATH];
 	char sfifoname[MAXPATH];
 	char serverFifo[MAXPATH];
-	int toclientFifo_fd, toserverFifo_fd, server_fifo_fd;
+	char prompt[MAXNAME+3];
+	long toclientFifo_fd, toserverFifo_fd, server_fifo_fd;
+	pthread_t client, server;
+	mesg_t de_mesg;
 	
 	
 	
@@ -70,8 +122,6 @@ int main(int argc, char *argv[]){
 	strcpy(join.name, argv[2]);
 	strcpy(join.to_client_fname, cfifoname);
 	strcpy(join.to_server_fname, sfifoname);
-
-	
 	
 	mkfifo(cfifoname,DEFAULT_PERMS);	
 	if((toclientFifo_fd = open(cfifoname, O_RDWR)) == -1){
@@ -83,19 +133,32 @@ int main(int argc, char *argv[]){
 		perror("Failed to open server fifo");
 		return 1;
 	}
+	strcpy(client_bl.name, argv[2]);
+	client_bl.to_ser_fd = toserverFifo_fd;
+	client_bl.to_clie_fd = toclientFifo_fd;
 	int serverfd = open(serverFifo, O_RDWR);
 	write(serverfd, &join, sizeof(join));
-	while(1){
-		mesg_t serv_mesg;
-		read(toclientFifo_fd, &serv_mesg, sizeof(serv_mesg));
-		if(serv_mesg.kind == 20)
-		{
-			printf("-- %s JOINED --\n", serv_mesg.name);
-		}
-		else if(serv_mesg.kind ==40){
-			printf("!!! server is shutting down !!!\n");
-		}
-	}
+	
+	//send to screen
+	snprintf(prompt, MAXNAME+3, "%s>> ", client_bl.name);
+	simpio_set_prompt(simpio, prompt);
+	simpio_reset(simpio);
+	simpio_noncanonical_terminal_mode();
+	
+	
+	pthread_create(&client, NULL, fromClient, (void *) &client_bl);
+	pthread_create(&server, NULL, fromServer, (void *) &client_bl); 
+	pthread_join(client, NULL);
+	pthread_join(server, NULL);
+	
+	simpio_reset_terminal_mode();
+	printf("\n");
+	
+	
+	de_mesg.kind = BL_DEPARTED;
+	strcpy(de_mesg.name,argv[2]);
+	write(toserverFifo_fd, &de_mesg, sizeof(mesg_t));
+	
 
 	return 0;
 }
