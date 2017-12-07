@@ -123,10 +123,6 @@ void server_shutdown(server_t *server){
 	remove(serverName);
 	close(server->log_fd);
 	remove(logFile);
-	
-	
-		
-	
 }
 
 
@@ -286,6 +282,9 @@ int server_handle_client(server_t *server, int idx){
 	read(server->client[idx].to_server_fd, &fr_client_mesg, sizeof(mesg_t));
 	if(fr_client_mesg.kind != 60){
 		server_broadcast(server, &fr_client_mesg);
+	}
+	if(fr_client_mesg.kind == 30){
+		server_remove_client(server, idx);
 	}
 	server->client[idx].data_ready = 0;
 	return 0;

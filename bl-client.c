@@ -25,7 +25,7 @@ typedef struct{
 
 simpio_t simpio_actual;
 simpio_t *simpio = &simpio_actual;
-
+pthread_t client, server;
 
 
 void *fromClient(void *client_bl){
@@ -46,6 +46,11 @@ void *fromClient(void *client_bl){
 			write(bl_client->to_ser_fd, &send_mesg, sizeof(mesg_t));
 		}
 	}
+	send_mesg.kind = BL_DEPARTED;
+	strcpy(send_mesg.name, bl_client->name);
+	strcpy(send_mesg.body, "");
+	write(bl_client->to_ser_fd, &send_mesg, sizeof(mesg_t));
+	pthread_cancel(server);
 	return NULL;
 }
 
@@ -95,14 +100,9 @@ int main(int argc, char *argv[]){
 	char serverFifo[MAXPATH];
 	char prompt[MAXNAME+3];
 	long toclientFifo_fd, toserverFifo_fd, server_fifo_fd;
-	pthread_t client, server;
+	
 	mesg_t de_mesg;
 	
-	
-	
-	//pthread_t clientThread, serverThread; 
-	
-	 
 	//turn off output buffering
 	
 	setvbuf(stdout, NULL, _IONBF, 0);
@@ -154,12 +154,6 @@ int main(int argc, char *argv[]){
 	simpio_reset_terminal_mode();
 	printf("\n");
 	
-	
-	de_mesg.kind = BL_DEPARTED;
-	strcpy(de_mesg.name,argv[2]);
-	write(toserverFifo_fd, &de_mesg, sizeof(mesg_t));
-	
-
 	return 0;
 }
 	

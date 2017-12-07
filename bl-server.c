@@ -59,17 +59,14 @@ int main(int argc, char *argv[]){
 			if((server_handle_join(&server))==-1){
 				printf("Join failed, to many clients\n");
 			}
-			sleep(5);
+			sleep(2);
 			}
 		printf("Number of clients %d\n", server.n_clients);
 		for(i=0; i<server.n_clients; i++){
-			printf("in client loop\n");
 			if(server_client_ready(&server, i)){
-				printf("Off to handle client\n");
 				server_handle_client(&server, i);
 			}
 		}
-		printf("And we are looping\n");	
 		sleep(1);
 		
 		
