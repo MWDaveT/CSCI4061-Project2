@@ -1,4 +1,5 @@
 #include "blather.h"
+#include <sys/time.h>
 #include <errno.h>
 
 
@@ -44,8 +45,7 @@ void server_start(server_t *server, char *server_name, int perms)
 	server->join_fd = -1;
 	server->join_ready = 0;
 	server->n_clients = 0;
-
-	server->time_sec = 0;
+	server->time_sec = time(NULL);
 	server->log_fd= -1;
 	server->log_sem = 0;
 	
@@ -108,7 +108,7 @@ void server_shutdown(server_t *server){
 	char logFile[MAXPATH];
 	mesg_t sd_mesg;
 	
-	
+	printf("In server shutdown\n");
 	sd_mesg.kind = BL_SHUTDOWN;
 	strcpy(sd_mesg.name, "");
 	strcpy(sd_mesg.body, "");
@@ -135,28 +135,26 @@ void server_shutdown(server_t *server){
 int server_add_client(server_t *server, join_t *join){
 	
 	int clientIndex = server->n_clients;
-	server->n_clients = server->n_clients + 1;
-	if(server->n_clients > MAXCLIENTS)
+	if(server->n_clients == MAXCLIENTS-1){
 		return -1;
-	else {
-		
-		strcpy(server->client[clientIndex].name, join->name);
-		strcpy(server->client[clientIndex].to_server_fname, join->to_server_fname);
-		strcpy(server->client[clientIndex].to_client_fname, join->to_client_fname);
-		
-		if((server->client[clientIndex].to_client_fd = open(server->client[clientIndex].to_client_fname, O_RDWR)) == -1){
-			perror("Failed to open to client fifo");
-			return -1;
-		}
-		if((server->client[clientIndex].to_server_fd = open(server->client[clientIndex].to_server_fname, O_RDWR)) == -1){
-			perror("Failed to open to server fifo");
-			return -1;
-		}
-		server->client[clientIndex].data_ready = 1;
-		server->client[clientIndex].last_contact_time = time(NULL);
-		server->time_sec = time(NULL);
 	}
-	return 0;
+	server->n_clients = server->n_clients + 1;
+	strcpy(server->client[clientIndex].name, join->name);
+	strcpy(server->client[clientIndex].to_server_fname, join->to_server_fname);
+	strcpy(server->client[clientIndex].to_client_fname, join->to_client_fname);
+		
+	if((server->client[clientIndex].to_client_fd = open(server->client[clientIndex].to_client_fname, O_RDWR)) == -1){
+		perror("Failed to open to client fifo");
+		return -1;
+	}
+	if((server->client[clientIndex].to_server_fd = open(server->client[clientIndex].to_server_fname, O_RDWR)) == -1){
+		perror("Failed to open to server fifo");
+		return -1;
+	}
+	server->client[clientIndex].data_ready = 1;
+	server->client[clientIndex].last_contact_time = time(NULL);
+	
+	return clientIndex;
 }		
 		
 int server_remove_client(server_t *server, int idx){
@@ -186,9 +184,10 @@ int server_broadcast(server_t *server, mesg_t *mesg){
 // should not be written to the log.
 
 int i;
+	printf("In server broadcast\n");
 
 	for (i = 0; i < server->n_clients; i++){
-		
+		printf("In server broadcast loop\n");
 		write(server->client[i].to_client_fd, mesg, sizeof(mesg_t));
 	}
 	
@@ -197,7 +196,54 @@ int i;
 		
 
 
-//void server_check_sources(server_t *server){
+void server_check_sources(server_t *server){
+	struct timeval tv;
+	int maxjoinfd, maxclientfd, i, result;
+	fd_set joinSet, clientSet;
+	
+	maxjoinfd = server->join_fd;
+	
+	FD_ZERO(&joinSet);
+	FD_ZERO(&clientSet);
+	FD_SET(server->join_fd, &joinSet);
+	
+	tv.tv_sec = 0;
+	tv.tv_usec = 0;
+	
+	
+	printf("Waiting\n");
+	result = select(maxjoinfd+1, &joinSet, NULL, NULL, &tv);
+	if (result == -1){
+		perror("Select Failed\n");
+	}
+	else{
+		if (FD_ISSET(server->join_fd, &joinSet)){
+		server->join_ready = 1;
+		}
+	}
+	
+	maxclientfd = -1;
+	for(i = 0; i <server->n_clients; i++){
+		FD_SET(server->client[i].to_server_fd, &clientSet);
+		if(server->client[i].to_server_fd > maxclientfd){
+			maxclientfd = server->client[i].to_server_fd;
+		}
+	}
+	result = select(maxclientfd+1, &clientSet, NULL, NULL, &tv);
+	if (result == -1){
+		perror("Client select failed\n");
+	}
+	else
+		{
+			for(i=0; i<server->n_clients; i++){
+				if(FD_ISSET(server->client[i].to_server_fd, &clientSet)){
+					server->client[i].data_ready = 1;
+				}
+			}
+		}
+	
+	return;
+}
 
 // Checks all sources of data for the server to determine if any are
 // ready for reading. Sets the servers join_ready flag and the
@@ -207,14 +253,44 @@ int i;
 
 	
 int server_join_ready(server_t *server){
-	return(server.join_ready);
+	return(server->join_ready);
 }
 
 
-//int server_handle_join(server_t *server);
-//int server_client_ready(server_t *server, int idx);
-//int server_handle_client(server_t *server, int idx);
-//void server_tick(server_t *server);
+int server_handle_join(server_t *server){
+	int index, maxfd;
+	join_t join;
+	
+	read(server->join_fd, &join, sizeof(join));
+	if((index = server_add_client(server, &join)) < 0){
+		printf("Currently at maxinum number of clients\n");
+		return 0;
+	}
+	server->join_ready = 0;
+	mesg_t mesg;
+	mesg.kind = BL_JOINED;
+	strcpy(mesg.name, server->client[index].name);
+	server_broadcast(server, &mesg);
+	
+	return 0;
+}
+	
+
+int server_client_ready(server_t *server, int idx){
+	return(server->client[idx].data_ready);
+}
+
+int server_handle_client(server_t *server, int idx){
+	return 0;
+}
+
+
+void server_tick(server_t *server){
+	time_t  ctime;
+	ctime = time(NULL);
+	server->time_sec = (ctime - server->time_sec);
+}
+
 //void server_ping_clients(server_t *server);
 //void server_remove_disconnected(server_t *server, int disconnect_secs);
 //void server_write_who(server_t *server);

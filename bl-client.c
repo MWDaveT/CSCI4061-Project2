@@ -50,7 +50,7 @@ int main(int argc, char *argv[]){
 	
 	//pthread_t clientThread, serverThread; 
 	
-	 //join->name[MAXPATH] = NULL;	
+	 
 	//turn off output buffering
 	
 	setvbuf(stdout, NULL, _IONBF, 0);
@@ -91,6 +91,9 @@ int main(int argc, char *argv[]){
 		if(serv_mesg.kind == 20)
 		{
 			printf("-- %s JOINED --\n", serv_mesg.name);
+		}
+		else if(serv_mesg.kind ==40){
+			printf("!!! server is shutting down !!!\n");
 		}
 	}
 
