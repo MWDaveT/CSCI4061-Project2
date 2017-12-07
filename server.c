@@ -112,8 +112,8 @@ void server_shutdown(server_t *server){
 	strcpy(sd_mesg.body, "");
 	server_broadcast(server, &sd_mesg);
 	idx = server->n_clients - 1;
-	for(i=idx;i>0;i--){
-		server_remove_client(server, idx);
+	for(i=idx;i>=0;i--){
+		server_remove_client(server, i);
 	}
 	strcpy(serverName, server->server_name);
 	strcat(serverName, ".fifo");
@@ -146,7 +146,7 @@ int server_add_client(server_t *server, join_t *join){
 		return -1;
 	}
 	server->client[clientIndex].data_ready = 0;
-	server->client[clientIndex].last_contact_time = time(NULL);
+	server->client[clientIndex].last_contact_time = server->time_sec;
 	
 	return clientIndex;
 }		
@@ -154,16 +154,16 @@ int server_add_client(server_t *server, join_t *join){
 int server_remove_client(server_t *server, int idx){
 	
 	int i;
-	
+	server->n_clients = server->n_clients - 1;
 	close(server->client[idx].to_client_fd);
 	close(server->client[idx].to_server_fd);
 	remove(server->client[idx].to_client_fname);
 	remove(server->client[idx].to_server_fname);
 	
-	for (i = idx; i < server->n_clients; i++){
+	for (i = idx; i < server->n_clients+1; i++){
 		server->client[i] = server->client[i+1];
 	} 
-	server->n_clients = server->n_clients - 1;
+	
 	
 	return 0;
 }
@@ -189,6 +189,13 @@ int i;
 
 
 void server_check_sources(server_t *server){
+// Checks all sources of data for the server to determine if any are
+// ready for reading. Sets the servers join_ready flag and the
+// data_ready flags of each of client if data is ready for them.
+// Makes use of the select() system call to efficiently determine
+// which sources are ready.
+
+
 	struct timeval tv;
 	int maxjoinfd, maxclientfd, i, result;
 	fd_set joinSet, clientSet;
@@ -203,10 +210,10 @@ void server_check_sources(server_t *server){
 	tv.tv_usec = 0;
 	
 	
-	printf("Waiting\n");
 	result = select(maxjoinfd+1, &joinSet, NULL, NULL, &tv);
 	if (result == -1){
-		perror("Select Failed\n");
+		//perror("select()");
+		
 	}
 	else{
 		if (FD_ISSET(server->join_fd, &joinSet)){
@@ -221,15 +228,17 @@ void server_check_sources(server_t *server){
 			maxclientfd = server->client[i].to_server_fd;
 		}
 	}
+			
 	result = select(maxclientfd+1, &clientSet, NULL, NULL, &tv);
 	if (result == -1){
-		perror("Client select failed\n");
+		//perror("select()");
 	}
 	else
 		{
 			for(i=0; i<server->n_clients; i++){
 				if(FD_ISSET(server->client[i].to_server_fd, &clientSet)){
 					server->client[i].data_ready = 1;
+					server->client[i].last_contact_time = server->time_sec;
 				}
 			}
 		}
@@ -237,11 +246,6 @@ void server_check_sources(server_t *server){
 	return;
 }
 
-// Checks all sources of data for the server to determine if any are
-// ready for reading. Sets the servers join_ready flag and the
-// data_ready flags of each of client if data is ready for them.
-// Makes use of the select() system call to efficiently determine
-// which sources are ready.
 
 	
 int server_join_ready(server_t *server){
@@ -254,7 +258,7 @@ int server_handle_join(server_t *server){
 	join_t join;
 	
 	read(server->join_fd, &join, sizeof(join_t));
-	printf("Passed read in handle join\n");
+	//printf("Passed read in handle join\n");
 	if((index = server_add_client(server, &join)) < 0){
 		printf("Currently at maxinum number of clients\n");
 		return 0;
@@ -263,7 +267,7 @@ int server_handle_join(server_t *server){
 	mesg_t mesg;
 	mesg.kind = BL_JOINED;
 	strcpy(mesg.name, server->client[index].name);
-	printf("Heading to broadcast join\n");
+	//printf("Heading to broadcast join\n");
 	server_broadcast(server, &mesg);
 	
 	return 0;
@@ -286,19 +290,59 @@ int server_handle_client(server_t *server, int idx){
 	if(fr_client_mesg.kind == 30){
 		server_remove_client(server, idx);
 	}
+	server->client[idx].last_contact_time = server->time_sec;
 	server->client[idx].data_ready = 0;
 	return 0;
 }
 
 
 void server_tick(server_t *server){
-	time_t  ctime;
-	ctime = time(NULL);
-	server->time_sec = (ctime - server->time_sec);
+	
+	int elapsed_time = time(NULL)-server->time_sec;
+	server->time_sec = time(NULL);
+	printf("Elapsed Time in sec since start: %d\n", elapsed_time);
+	
 	return;
 }
 
-//void server_ping_clients(server_t *server);
-//void server_remove_disconnected(server_t *server, int disconnect_secs);
+void server_ping_clients(server_t *server){
+	
+	int i;
+	mesg_t ping_mesg;
+	
+	printf("Pinging clients\n");
+	ping_mesg.kind = BL_PING;
+	strcpy(ping_mesg.name, "\0");
+	strcpy(ping_mesg.body, "\0");
+	if((server_broadcast(server, &ping_mesg)) == -1){
+		printf("Ping message failed somewhere\n");
+	}
+	return;
+}
+		
+void server_remove_disconnected(server_t *server, int disconnect_secs)
+{
+	int i;
+	int timeSince;
+	mesg_t dis_mesg;
+	
+	for(i=0; i<server->n_clients; i++){
+		timeSince = server->time_sec - server->client[i].last_contact_time;
+		printf("time since contact: %d\n", timeSince);
+		if(timeSince > disconnect_secs){
+			printf("In disconnect: %d\n", timeSince);
+			
+			dis_mesg.kind = BL_DISCONNECTED;
+			strcpy(dis_mesg.name, server->client[i].name);
+			strcpy(dis_mesg.body, "\0");
+			server_remove_client(server, i);
+			server_broadcast(server, &dis_mesg);
+			sleep(2);
+		}
+	}
+	return;
+}
+			
+		
 //void server_write_who(server_t *server);
 //void server_log_message(server_t *server, mesg_t *mesg);

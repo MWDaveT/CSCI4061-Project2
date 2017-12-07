@@ -57,7 +57,7 @@ void *fromClient(void *client_bl){
 void *fromServer(void *client_bl){
 	
 	blclient_t *bl_client = (blclient_t*) client_bl;
-	mesg_t rec_mesg;
+	mesg_t rec_mesg, ping_mesg;
 	char textbody[MAXNAME + MAXLINE +5];
 	
 	while(1){
@@ -73,12 +73,19 @@ void *fromServer(void *client_bl){
 		}
 		else if (rec_mesg.kind == 40){
 			iprintf(simpio, "!!! server is shutting down !!!\n");
+			pthread_cancel(client);
+			return NULL;
 		}
 		else if (rec_mesg.kind == 50){
 			iprintf(simpio, "-- %s DISCONNECTED --\n", rec_mesg.name);
 		}
 		else
-		{}
+		{
+			ping_mesg.kind = BL_PING;
+			strcpy(ping_mesg.name, "\0");
+			strcpy(ping_mesg.body, "\0");
+			write(bl_client->to_ser_fd, &ping_mesg, sizeof(mesg_t));	
+		}
 	}
 		
 	return NULL;
@@ -145,12 +152,14 @@ int main(int argc, char *argv[]){
 	simpio_reset(simpio);
 	simpio_noncanonical_terminal_mode();
 	
-	
+	//create threads and wait for them to return
 	pthread_create(&client, NULL, fromClient, (void *) &client_bl);
 	pthread_create(&server, NULL, fromServer, (void *) &client_bl); 
 	pthread_join(client, NULL);
 	pthread_join(server, NULL);
 	
+	
+	//reset the terminal and exit program
 	simpio_reset_terminal_mode();
 	printf("\n");
 	
