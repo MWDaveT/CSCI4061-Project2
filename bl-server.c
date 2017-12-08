@@ -73,6 +73,7 @@ int main(int argc, char *argv[]){
 			server_ping_clients(&server);
 			server_remove_disconnected(&server, DISCONNECT_SECS);
 			server_tick(&server);
+			server_write_who(&server);
 		}
 		
 		server_check_sources(&server);
@@ -80,6 +81,7 @@ int main(int argc, char *argv[]){
 			if((server_handle_join(&server))==-1){
 				printf("Join failed, to many clients\n");
 				}
+			
 			}
 		//printf("Number of clients %d\n", server.n_clients);
 		for(i=0; i<server.n_clients; i++){
@@ -89,6 +91,7 @@ int main(int argc, char *argv[]){
 		}	
 		
 	}
+	
 	server_shutdown(&server);
 	return 0;
 }
