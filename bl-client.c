@@ -1,19 +1,5 @@
 //  Created 11-30-2017 David Toole. tool0013
 //	Project 2 Blather
-#include <stdio.h>
-#include <unistd.h>
-#include <pthread.h>
-#include <string.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <stdarg.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <signal.h>
-#include <semaphore.h>
-
-
 
 #include "blather.h"
 
@@ -22,6 +8,8 @@ typedef struct{
 		int to_ser_fd;
 		int to_clie_fd;
 } blclient_t;
+
+int err;
 
 simpio_t simpio_actual;
 simpio_t *simpio = &simpio_actual;
@@ -42,13 +30,21 @@ void *fromClient(void *client_bl){
 			send_mesg.kind = BL_MESG;
 			strcpy(send_mesg.name, bl_client->name);
 			strcpy(send_mesg.body, simpio->buf);
-			write(bl_client->to_ser_fd, &send_mesg, sizeof(mesg_t));
+			err = write(bl_client->to_ser_fd, &send_mesg, sizeof(mesg_t));
+			if(err == -1){
+				perror("Write Client FIFO error: ");
+				pthread_cancel(server);
+				return NULL;
+			}
 		}
 	}
 	send_mesg.kind = BL_DEPARTED;
 	strcpy(send_mesg.name, bl_client->name);
 	strcpy(send_mesg.body, "");
-	write(bl_client->to_ser_fd, &send_mesg, sizeof(mesg_t));
+	err = write(bl_client->to_ser_fd, &send_mesg, sizeof(mesg_t));
+	if(err == -1){
+		perror("Write to client FIFO: ");
+	}
 	pthread_cancel(server);
 	return NULL;
 }
@@ -82,7 +78,10 @@ void *fromServer(void *client_bl){
 			ping_mesg.kind = BL_PING;
 			strcpy(ping_mesg.name, "\0");
 			strcpy(ping_mesg.body, "\0");
-			write(bl_client->to_ser_fd, &ping_mesg, sizeof(mesg_t));	
+			err = write(bl_client->to_ser_fd, &ping_mesg, sizeof(mesg_t));
+			if(err == -1){
+				perror("Write to client FIFO: ");
+			}
 		}
 	}
 		

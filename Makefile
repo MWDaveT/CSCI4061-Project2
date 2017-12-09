@@ -1,4 +1,4 @@
-CFLAGS 	= -Wall -std=gnu11 -pthread
+CFLAGS 	= -Wall -g -std=gnu11 -pthread
 CC		= gcc $(CFLAGS)
 
 blather : server client
