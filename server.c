@@ -390,13 +390,11 @@ void server_remove_disconnected(server_t *server, int disconnect_secs)
 void *server_write_who(void *server){
 	
 	server_t *server_w = (server_t*) server;
-	
 	who_t who ;
 	int i;
 	who.n_clients = server_w->n_clients;
 	for(i=0; i<who.n_clients; i++){	
 		strcpy(who.names[i], server_w->client[i].name);
-		printf("Logging name: %s\n", who.names[i]);
 	}
 	
 	sem_wait(&server_w->log_sem);
@@ -407,8 +405,20 @@ void *server_write_who(void *server){
 
 //Advanced feature for logging messages
 void server_log_message(server_t *server, mesg_t *mesg){
+	FILE *log;
+	char path[MAXPATH];
 	
-	printf("Message Logging\n");
+	strcpy(path, server->server_name);
+	strcat(path, ".log");
+	
+	log = fopen(path, "a+");
+	if(log == NULL){
+		perror("Logfile error: ");
+		return;
+	}
+	fseek(log,sizeof(who_t),SEEK_SET);
+	fwrite(mesg, sizeof(mesg_t), 1, log);
+	rewind(log);
 	
 	return;
 }

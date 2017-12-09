@@ -112,7 +112,7 @@ int main(int argc, char *argv[]){
 	//check to make sure input is correct
 	if(argc <3){
 		printf("usage: %s <server name> <client name>\n", argv[0]);
-		exit(1);
+		return 1;
 	}
 	if(strlen(argv[1])>MAXPATH-5){
 		printf("Server name exceeds max allowed, name cannot exceed 1018 characters\n");
