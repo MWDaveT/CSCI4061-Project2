@@ -114,8 +114,15 @@ int main(int argc, char *argv[]){
 		printf("usage: %s <server name> <client name>\n", argv[0]);
 		exit(1);
 	}
+	if(strlen(argv[1])>MAXPATH-5){
+		printf("Server name exceeds max allowed, name cannot exceed 1018 characters\n");
+		return -1;
+	}
+	if(strlen(argv[2])>MAXPATH-12){
+		printf("Client name exceeds maximum allowed, cannot exceed 1010 characters\n");
+	}
 	
-	
+	//Setup for client and server fifo
 	clientpid = getpid();
 	strcpy(serverFifo, argv[1]);
 	strcat(serverFifo, serExt);
@@ -125,21 +132,38 @@ int main(int argc, char *argv[]){
 	strcpy(join.to_client_fname, cfifoname);
 	strcpy(join.to_server_fname, sfifoname);
 	
-	mkfifo(cfifoname,DEFAULT_PERMS);	
+	//creating fifos	
+	err = mkfifo(cfifoname,DEFAULT_PERMS);
+	if(err == -1){
+		perror("Make from client FIFO error: ");
+	}
 	if((toclientFifo_fd = open(cfifoname, O_RDWR)) == -1){
 		perror("Failed to open client fifo");
 		return 1;
 	}
-	mkfifo(sfifoname, DEFAULT_PERMS);
+	err = mkfifo(sfifoname, DEFAULT_PERMS);
+	if(err == -1){
+		perror("Make from server FIFO error: ");
+	}
 	if ((toserverFifo_fd = open(sfifoname, O_RDWR)) == -1){
 		perror("Failed to open server fifo");
 		return 1;
 	}
+	
+	//populating client struct
 	strcpy(client_bl.name, argv[2]);
 	client_bl.to_ser_fd = toserverFifo_fd;
 	client_bl.to_clie_fd = toclientFifo_fd;
+	
+	//setting up server fifo to send join request
 	int serverfd = open(serverFifo, O_RDWR);
-	write(serverfd, &join, sizeof(join));
+	if (serverfd == -1){
+		perror("Open Server Join FIFO  error: ");
+	}
+	err = write(serverfd, &join, sizeof(join));
+	if(err == -1){
+		perror("Write to Servre Join FIFO error: ");
+	}
 	
 	//send to screen
 	snprintf(prompt, MAXNAME+3, "%s>> ", client_bl.name);
@@ -148,8 +172,14 @@ int main(int argc, char *argv[]){
 	simpio_noncanonical_terminal_mode();
 	
 	//create threads and wait for them to return
-	pthread_create(&client, NULL, fromClient, (void *) &client_bl);
-	pthread_create(&server, NULL, fromServer, (void *) &client_bl); 
+	err = pthread_create(&client, NULL, fromClient, (void *) &client_bl);
+	if(err != 0){
+		printf("Failed to create from client thread: [%s]\n", strerror(err));
+	}
+	err = pthread_create(&server, NULL, fromServer, (void *) &client_bl); 
+	if(err != 0){
+		printf("Failed to create from server thread: [%s]\n", strerror(err));
+	}
 	pthread_join(client, NULL);
 	pthread_join(server, NULL);
 	

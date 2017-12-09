@@ -36,14 +36,12 @@ void server_start(server_t *server, char *server_name, int perms)
 	FILE *log;
 	
 	//initialize server struct
-	
-	
 	server->join_fd = -1;
 	server->join_ready = 0;
 	server->n_clients = 0;
 	server->time_sec = time(NULL);
 	server->log_fd= -1;
-	server->log_sem = 0;
+	//server->log_sem = 0;
 	
 	//Insure that server name is not to long
 	
@@ -81,7 +79,7 @@ void server_start(server_t *server, char *server_name, int perms)
 	
 	// Advanced area
 	strcpy(logFile, server_name);
-	strcat(logFile, ".txt");
+	strcat(logFile, ".log");
 	log = fopen(logFile, "a+");
 	if (log == NULL){
 		perror("Failed to create log file");
@@ -90,24 +88,32 @@ void server_start(server_t *server, char *server_name, int perms)
 	else
 	{
 		server->log_fd = open(logFile, O_RDWR);
+		if(server->log_fd == -1){
+			perror("Failed to open file: ");
+		}
 	}
 	
 	return;
 	}
+	
+//function used when shutting down server, cleans up and removes all fifos
 
 void server_shutdown(server_t *server){
+	
 	int i, idx;
 	char serverName[MAXPATH];
 	char logFile[MAXPATH];
 	mesg_t sd_mesg;
 	
+	
+	//setup shutdowm message to send to all connect clients
 	sd_mesg.kind = BL_SHUTDOWN;
 	strcpy(sd_mesg.name, "");
 	strcpy(sd_mesg.body, "");
 	server_broadcast(server, &sd_mesg);
 	idx = server->n_clients - 1;
-	//idx = server->n_clients;
-	
+
+	//remove all clients connected to server
 	for(i=idx;i>=0;i--){
 		server_remove_client(server, i);
 	}
@@ -123,13 +129,15 @@ void server_shutdown(server_t *server){
 	//remove(logFile);
 }
 
-
+//function used to add new clients to server
 int server_add_client(server_t *server, join_t *join){
 	
 	int clientIndex = server->n_clients;
 	if(server->n_clients == MAXCLIENTS-1){
 		return -1;
 	}
+	
+	//populate the client struct of the server struct with new client
 	server->n_clients = server->n_clients + 1;
 	strcpy(server->client[clientIndex].name, join->name);
 	strcpy(server->client[clientIndex].to_server_fname, join->to_server_fname);
@@ -147,7 +155,9 @@ int server_add_client(server_t *server, join_t *join){
 	
 	return clientIndex;
 }		
-		
+
+
+//function used to remove a client on departed or disconnect or shutdown	
 int server_remove_client(server_t *server, int idx){
 	
 	int i;
@@ -164,7 +174,7 @@ int server_remove_client(server_t *server, int idx){
 	remove(client[idx].to_client_fname);
 	remove(client[idx].to_server_fname);
 	
-	//reset client array unless the last element is being removed
+	//reset client array unless the last client is being removed
 	if(k != idx){
 		for (i = idx; i < j; i++){
 			client[i] = client[i+1];
@@ -189,8 +199,11 @@ int i;
 
 	for (i = 0; i < server->n_clients; i++){
 		
-		write(server->client[i].to_client_fd, mesg, sizeof(mesg_t));
+		if((write(server->client[i].to_client_fd, mesg, sizeof(mesg_t)))==-1){
+			perror("Failed to write message to client: ");
+		}
 	}
+	//if message is anything but a ping, log it
 	if(mesg->kind != 60){
 		server_log_message(server, mesg);
 	}
@@ -220,8 +233,9 @@ void server_check_sources(server_t *server){
 	tv.tv_sec = 0;
 	tv.tv_usec = 0;
 	
-	
+	//select for monitoring join request
 	result = select(maxjoinfd+1, &joinSet, NULL, NULL, &tv);
+	//removed error checking do to use of alarm pinging
 	if (result == -1){
 		//perror("select()");
 		
@@ -233,6 +247,8 @@ void server_check_sources(server_t *server){
 	}
 	
 	maxclientfd = -1;
+	
+	//populate FD_SET with clients
 	for(i = 0; i <server->n_clients; i++){
 		FD_SET(server->client[i].to_server_fd, &clientSet);
 		if(server->client[i].to_server_fd > maxclientfd){
@@ -241,6 +257,7 @@ void server_check_sources(server_t *server){
 	}
 			
 	result = select(maxclientfd+1, &clientSet, NULL, NULL, &tv);
+	//removed error checking do to use of alarm for pinging
 	if (result == -1){
 		//perror("select()");
 	}
@@ -258,49 +275,62 @@ void server_check_sources(server_t *server){
 }
 
 
-	
+//function that determines if there is a join request
 int server_join_ready(server_t *server){
 	return(server->join_ready);
 }
 
+//fucntion for handling join request
 
 int server_handle_join(server_t *server){
 	int index;
 	join_t join;
 	
-	read(server->join_fd, &join, sizeof(join_t));
-	//printf("Passed read in handle join\n");
+	if((read(server->join_fd, &join, sizeof(join_t)))==-1){
+		perror("Failed to read join FIFO: ");
+	}
 	if((index = server_add_client(server, &join)) < 0){
 		printf("Currently at maxinum number of clients\n");
 		return 0;
 	}
+	
+	//reset join ready for next join request
 	server->join_ready = 0;
+	
+	//message setup for broadcasting arrival of new client
 	mesg_t mesg;
 	mesg.kind = BL_JOINED;
 	strcpy(mesg.name, server->client[index].name);
-	//printf("Heading to broadcast join\n");
 	server_broadcast(server, &mesg);
 	
 	return 0;
 }
 	
-
+//function to indicate if client has data ready for server
 int server_client_ready(server_t *server, int idx){
 	
 	return(server->client[idx].data_ready);
 }
 
+//function used to handle data from client
 int server_handle_client(server_t *server, int idx){
 	
 	mesg_t fr_client_mesg;
 	
-	read(server->client[idx].to_server_fd, &fr_client_mesg, sizeof(mesg_t));
+	if((read(server->client[idx].to_server_fd, &fr_client_mesg, sizeof(mesg_t)))==-1){
+		perror("Failed to read to server fifo: ");
+	}
+	//Broadcast all messages clients except ping
 	if(fr_client_mesg.kind != 60){
 		server_broadcast(server, &fr_client_mesg);
 	}
+	
+	//handling of departed message
 	if(fr_client_mesg.kind == 30){
 		server_remove_client(server, idx);
 	}
+	
+	//update client contact time
 	server->client[idx].last_contact_time = server->time_sec;
 	server->client[idx].data_ready = 0;
 	return 0;
@@ -308,16 +338,19 @@ int server_handle_client(server_t *server, int idx){
 
 
 void server_tick(server_t *server){
-	
+	//update server time
 	server->time_sec = time(NULL);
 	
 	return;
 }
 
+
+//Advanced feature function to ping clients
 void server_ping_clients(server_t *server){
 	
 	mesg_t ping_mesg;
 	
+	//setup ping message
 	ping_mesg.kind = BL_PING;
 	strcpy(ping_mesg.name, "\0");
 	strcpy(ping_mesg.body, "\0");
@@ -326,7 +359,9 @@ void server_ping_clients(server_t *server){
 	}
 	return;
 }
-		
+
+
+//Advanced feature function to see if client has disconnected	
 void server_remove_disconnected(server_t *server, int disconnect_secs)
 {
 	int i;
@@ -335,12 +370,13 @@ void server_remove_disconnected(server_t *server, int disconnect_secs)
 	
 	for(i=0; i<server->n_clients; i++){
 		timeSince = server->time_sec - server->client[i].last_contact_time;
-		if(timeSince > disconnect_secs){
-			printf("In disconnect: %d\n", timeSince);
-			
+		if(timeSince >= disconnect_secs){
+			//setup disconnected message if time of last contact is >= disconnect_sec
 			dis_mesg.kind = BL_DISCONNECTED;
 			strcpy(dis_mesg.name, server->client[i].name);
 			strcpy(dis_mesg.body, "\0");
+			
+			//removed disconnected client from server and broadcast message
 			server_remove_client(server, i);
 			server_broadcast(server, &dis_mesg);
 			sleep(2);
@@ -348,23 +384,29 @@ void server_remove_disconnected(server_t *server, int disconnect_secs)
 	}
 	return;
 }			
-		
-void server_write_who(server_t *server){
+
+
+//Advanced feature of logging of who_t struct to log file	
+void *server_write_who(void *server){
 	
-	who_t server_who ;
+	server_t *server_w = (server_t*) server;
+	
+	who_t who ;
 	int i;
-	
-	server_who.n_clients = server->n_clients;
-	
-	for(i=0; i<server->n_clients; i++){	
-		strcpy(server_who.names[i], server->client[i].name);
+	who.n_clients = server_w->n_clients;
+	for(i=0; i<who.n_clients; i++){	
+		strcpy(who.names[i], server_w->client[i].name);
+		printf("Logging name: %s\n", who.names[i]);
 	}
-	pwrite(server->log_fd, &server_who, sizeof(who_t),0);
-	return;
+	
+	sem_wait(&server_w->log_sem);
+	pwrite(server_w->log_fd, &who, sizeof(who_t),0);
+	sem_post(&server_w->log_sem);
+	return NULL;
 }
+
+//Advanced feature for logging messages
 void server_log_message(server_t *server, mesg_t *mesg){
-	
-	
 	
 	printf("Message Logging\n");
 	

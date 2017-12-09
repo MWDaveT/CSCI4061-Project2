@@ -46,7 +46,7 @@ typedef struct {
   client_t client[MAXCLIENTS];  // array of clients populated up to n_clients
   int time_sec;                 // ADVANCED: time in seconds since server started
   int log_fd;                   // ADVANCED: file descriptor for log
-  sem_t *log_sem;               // ADVANCED: posix semaphore to control who_t section of log file
+  sem_t log_sem;               // ADVANCED: posix semaphore to control who_t section of log file
 } server_t;
 
 // join_t: structure for requests to join the chat room
@@ -107,7 +107,8 @@ int server_handle_client(server_t *server, int idx);
 void server_tick(server_t *server);
 void server_ping_clients(server_t *server);
 void server_remove_disconnected(server_t *server, int disconnect_secs);
-void server_write_who(server_t *server);
+//changed for threaded function
+void *server_write_who(void *server);
 void server_log_message(server_t *server, mesg_t *mesg);
 
 // simpio.c

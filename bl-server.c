@@ -10,12 +10,14 @@ int alarmed = 0;
 	join_t join;
 	mesg_t mesg;
 
+//signal handler fucntion for term and int
 void handle_signals(int signo){
 	
 	signaled = 1;
 	return;
 }
 
+//signal handler function for alarm
 void handle_alarm(int signo){
 	alarmed = 1;
 	alarm(1);
@@ -24,7 +26,14 @@ void handle_alarm(int signo){
 
 int main(int argc, char *argv[]){
 	
+	int i, err;
+	char server_name[MAXPATH];
+	char serverPath[MAXPATH];
+	pthread_t write_who;
+	
 	//signal handling section
+	
+	//signal handler setup for termination and interupt
 	struct sigaction my_sa = {};
 	my_sa.sa_handler = handle_signals;
 	sigemptyset(&my_sa.sa_mask);
@@ -32,17 +41,13 @@ int main(int argc, char *argv[]){
 	sigaction(SIGTERM, &my_sa, NULL);
 	sigaction(SIGINT, &my_sa, NULL);
 	
+	//signal handler setup for alarm
 	struct sigaction my_alarm = {};
 	my_alarm.sa_handler = handle_alarm;
 	sigemptyset(&my_alarm.sa_mask);
 	my_alarm.sa_flags = SA_RESTART;
 	sigaction(SIGALRM, &my_alarm, NULL);
 	
-	
-	
-	int i;
-	char server_name[MAXPATH];
-	char serverPath[MAXPATH];
 	
 	//turn off output buffering
 	setvbuf(stdout, NULL, _IONBF, 0);
@@ -53,6 +58,10 @@ int main(int argc, char *argv[]){
 		exit(1);
 	}
 	
+	if(strlen(argv[1])>MAXPATH-5){
+		printf("Server name exceeds max allowed, name cannot exceed 1018 characters\n");
+		return -1;
+	}
 	//copy input
 	strcpy(server_name, argv[1]);
 	server_start(&server, server_name, DEFAULT_PERMS);
@@ -61,19 +70,33 @@ int main(int argc, char *argv[]){
 	
 	//open for reading join fifo
 	server.join_fd = open(serverPath, O_RDWR);
+	if(server.join_fd == -1){
+		perror("Failed to open Join FIFO: ");
+	}
+	
+	sem_init(&server.log_sem, 0 ,1);
+	printf("I made it here\n");
+	
 	alarm(1);
+	
+	//main while loop
 	while(!signaled){
 		
 		
-		
+		//what to do for alarm - ping clients
 		if(alarmed == 1){
 			alarmed = 0;			
 			server_ping_clients(&server);
 			server_remove_disconnected(&server, DISCONNECT_SECS);
 			server_tick(&server);
+			err = pthread_create(&write_who, NULL, server_write_who, (void *) &server);
+			if(err != 0){
+				printf("Failed to create from client thread: [%s]\n", strerror(err));
+			}
 			server_write_who(&server);
 		}
 		
+		//check all attached fifos for action
 		server_check_sources(&server);
 		if(server_join_ready(&server)){
 			if((server_handle_join(&server))==-1){
@@ -81,7 +104,6 @@ int main(int argc, char *argv[]){
 				}
 			
 			}
-		//printf("Number of clients %d\n", server.n_clients);
 		for(i=0; i<server.n_clients; i++){
 			if(server_client_ready(&server, i)){
 				server_handle_client(&server, i);
@@ -89,7 +111,7 @@ int main(int argc, char *argv[]){
 		}	
 		
 	}
-	
+	pthread_cancel(write_who);
 	server_shutdown(&server);
 	return 0;
 }
