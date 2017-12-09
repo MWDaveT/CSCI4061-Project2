@@ -30,9 +30,7 @@ void server_start(server_t *server, char *server_name, int perms)
 	char logFile[MAXPATH];
 	char serverName[MAXPATH];
 	//char serFIFO[MAXPATH+5];
-	int offset;
-	off_t pos;
-	int joinfd;
+	//off_t pos;
 	
 	//Advanced area
 	FILE *log;
@@ -267,7 +265,7 @@ int server_join_ready(server_t *server){
 
 
 int server_handle_join(server_t *server){
-	int index, maxfd;
+	int index;
 	join_t join;
 	
 	read(server->join_fd, &join, sizeof(join_t));
@@ -311,7 +309,6 @@ int server_handle_client(server_t *server, int idx){
 
 void server_tick(server_t *server){
 	
-	int elapsed_time = time(NULL)-server->time_sec;
 	server->time_sec = time(NULL);
 	
 	return;
@@ -319,7 +316,6 @@ void server_tick(server_t *server){
 
 void server_ping_clients(server_t *server){
 	
-	int i;
 	mesg_t ping_mesg;
 	
 	ping_mesg.kind = BL_PING;

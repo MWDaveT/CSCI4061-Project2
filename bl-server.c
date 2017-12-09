@@ -41,8 +41,6 @@ int main(int argc, char *argv[]){
 	
 	
 	int i;
-	int j = 0;
-	fd_set join_set, client_set;
 	char server_name[MAXPATH];
 	char serverPath[MAXPATH];
 	

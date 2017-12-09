@@ -30,7 +30,6 @@ pthread_t client, server;
 
 void *fromClient(void *client_bl){
 	blclient_t *bl_client = (blclient_t*) client_bl;
-	int count = 1;
 	mesg_t send_mesg;
 	
 	while(!simpio->end_of_input){
@@ -58,7 +57,6 @@ void *fromServer(void *client_bl){
 	
 	blclient_t *bl_client = (blclient_t*) client_bl;
 	mesg_t rec_mesg, ping_mesg;
-	char textbody[MAXNAME + MAXLINE +5];
 	
 	while(1){
 		read(bl_client->to_clie_fd, &rec_mesg, sizeof(mesg_t));
@@ -95,7 +93,6 @@ void *fromServer(void *client_bl){
 
 int main(int argc, char *argv[]){
 	
-	int error;
 	pid_t clientpid;
 	join_t join;
 	blclient_t client_bl;
@@ -106,9 +103,8 @@ int main(int argc, char *argv[]){
 	char sfifoname[MAXPATH];
 	char serverFifo[MAXPATH];
 	char prompt[MAXNAME+3];
-	long toclientFifo_fd, toserverFifo_fd, server_fifo_fd;
+	long toclientFifo_fd, toserverFifo_fd;
 	
-	mesg_t de_mesg;
 	
 	//turn off output buffering
 	
