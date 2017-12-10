@@ -122,11 +122,11 @@ void server_shutdown(server_t *server){
 	strcpy(logFile, server->server_name);
 	strcat(logFile, ".log");
 	close(server->join_fd);
-	remove(serverName);
 	close(server->log_fd);
-	
+	remove(serverName);
 	//changed for advanced part
 	//remove(logFile);
+	return;
 }
 
 //function used to add new clients to server
@@ -389,17 +389,19 @@ void server_remove_disconnected(server_t *server, int disconnect_secs)
 //Advanced feature of logging of who_t struct to log file	
 void *server_write_who(void *server){
 	
+	
 	server_t *server_w = (server_t*) server;
-	who_t who ;
+	who_t who;
 	int i;
+	
 	who.n_clients = server_w->n_clients;
 	for(i=0; i<who.n_clients; i++){	
 		strcpy(who.names[i], server_w->client[i].name);
 	}
+	sem_wait(server_w->log_sem);
+		pwrite(server_w->log_fd, &who, sizeof(who_t),0);
+	sem_post(server_w->log_sem);
 	
-	sem_wait(&server_w->log_sem);
-	pwrite(server_w->log_fd, &who, sizeof(who_t),0);
-	sem_post(&server_w->log_sem);
 	return NULL;
 }
 

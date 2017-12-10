@@ -29,6 +29,7 @@ int main(int argc, char *argv[]){
 	int i, err;
 	char server_name[MAXPATH];
 	char serverPath[MAXPATH];
+	char semName[MAXPATH];
 	pthread_t write_who;
 	
 	//signal handling section
@@ -48,6 +49,13 @@ int main(int argc, char *argv[]){
 	my_alarm.sa_flags = SA_RESTART;
 	sigaction(SIGALRM, &my_alarm, NULL);
 	
+	strcpy(semName, "/");
+	strcat(semName, server.server_name);
+	strcat(semName, ".sem");
+	int errno = 0;
+	if((server.log_sem = sem_open(semName, O_CREAT, 0644, 1))==SEM_FAILED){
+		fprintf(stderr, "sem_open() failed. errno:%d\n", errno);
+	}
 	
 	//turn off output buffering
 	setvbuf(stdout, NULL, _IONBF, 0);
@@ -74,7 +82,7 @@ int main(int argc, char *argv[]){
 		perror("Failed to open Join FIFO: ");
 	}
 	
-	sem_init(&server.log_sem, 0 ,1);
+	
 	printf("I made it here\n");
 	
 	alarm(1);
@@ -93,7 +101,7 @@ int main(int argc, char *argv[]){
 			if(err != 0){
 				printf("Failed to create from client thread: [%s]\n", strerror(err));
 			}
-			server_write_who(&server);
+			//server_write_who(&server);
 		}
 		
 		//check all attached fifos for action
@@ -111,7 +119,9 @@ int main(int argc, char *argv[]){
 		}	
 		
 	}
+	sem_unlink(semName);
+	sem_close(server.log_sem);
 	pthread_cancel(write_who);
-	server_shutdown(&server);
+	server_shutdown(&server);	printf("wft\n");
 	return 0;
 }

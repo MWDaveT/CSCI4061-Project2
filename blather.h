@@ -46,7 +46,7 @@ typedef struct {
   client_t client[MAXCLIENTS];  // array of clients populated up to n_clients
   int time_sec;                 // ADVANCED: time in seconds since server started
   int log_fd;                   // ADVANCED: file descriptor for log
-  sem_t log_sem;               // ADVANCED: posix semaphore to control who_t section of log file
+  sem_t *log_sem;               // ADVANCED: posix semaphore to control who_t section of log file
 } server_t;
 
 // join_t: structure for requests to join the chat room

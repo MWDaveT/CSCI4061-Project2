@@ -3,13 +3,24 @@
 
 #include "blather.h"
 
+who_t who_name;
+	char last[5] = "%last";
+	char who[4] = "%who";
+	char testwho[4];
+	char testlast[5];
+	char logname[MAXPATH];
+	int complast, compwho;
+	
+
 typedef struct{
 		char name[MAXNAME];
+		char server[MAXPATH];
+		sem_t *log_sem;
 		int to_ser_fd;
 		int to_clie_fd;
 } blclient_t;
 
-int err;
+int err, i; 
 
 simpio_t simpio_actual;
 simpio_t *simpio = &simpio_actual;
@@ -19,6 +30,11 @@ pthread_t client, server;
 void *fromClient(void *client_bl){
 	blclient_t *bl_client = (blclient_t*) client_bl;
 	mesg_t send_mesg;
+	FILE *log;
+	
+	strcpy(logname, bl_client->server);
+	strcat(logname, ".log");
+	
 	
 	while(!simpio->end_of_input){
 		simpio_reset(simpio);
@@ -27,17 +43,43 @@ void *fromClient(void *client_bl){
 			simpio_get_char(simpio);
 		}
 		if(simpio->line_ready){
-			send_mesg.kind = BL_MESG;
-			strcpy(send_mesg.name, bl_client->name);
-			strcpy(send_mesg.body, simpio->buf);
-			err = write(bl_client->to_ser_fd, &send_mesg, sizeof(mesg_t));
-			if(err == -1){
-				perror("Write Client FIFO error: ");
-				pthread_cancel(server);
-				return NULL;
+			strncpy(testlast, simpio->buf,5);
+			strncpy(testwho, simpio->buf,4);
+			complast = (strcmp(last, testlast));
+			compwho = (strcmp(who, testwho));
+			if(complast == 0){
+				
 			}
-		}
+			else if(compwho == 0){
+				
+				log = fopen(logname, "r");
+				sem_wait(bl_client->log_sem);
+					
+					fread(&who_name, sizeof(who_t), 1, log);
+				sem_post(bl_client->log_sem);
+				
+				iprintf(simpio, "====================\n");
+				iprintf(simpio, "%d CLIENTS\n", who_name.n_clients);
+				for(i=0; i<who_name.n_clients; i++){
+					iprintf(simpio, "%d: %s\n", i, who_name.names[i]);
+				}
+				iprintf(simpio, "====================\n");				
+				
+			}
+			else{
+				send_mesg.kind = BL_MESG;
+				strcpy(send_mesg.name, bl_client->name);
+				strcpy(send_mesg.body, simpio->buf);
+				err = write(bl_client->to_ser_fd, &send_mesg, sizeof(mesg_t));
+				if(err == -1){
+					perror("Write Client FIFO error: ");
+					pthread_cancel(server);
+					return NULL;
+					}
+				}
+			}
 	}
+	
 	send_mesg.kind = BL_DEPARTED;
 	strcpy(send_mesg.name, bl_client->name);
 	strcpy(send_mesg.body, "");
@@ -98,6 +140,7 @@ int main(int argc, char *argv[]){
 	const char *cFifo = ".client.fifo";
 	const char *sFifo = ".server.fifo";
 	const char *serExt = ".fifo";
+	char semName[MAXPATH];
 	char cfifoname[MAXPATH];
 	char sfifoname[MAXPATH];
 	char serverFifo[MAXPATH];
@@ -132,6 +175,12 @@ int main(int argc, char *argv[]){
 	strcpy(join.to_client_fname, cfifoname);
 	strcpy(join.to_server_fname, sfifoname);
 	
+	strcpy(semName, "/");
+	strcat(semName, argv[1]);
+	strcat(semName, ".sem");
+	
+	
+	
 	//creating fifos	
 	err = mkfifo(cfifoname,DEFAULT_PERMS);
 	if(err == -1){
@@ -152,8 +201,12 @@ int main(int argc, char *argv[]){
 	
 	//populating client struct
 	strcpy(client_bl.name, argv[2]);
+	strcpy(client_bl.server, argv[1]);
 	client_bl.to_ser_fd = toserverFifo_fd;
 	client_bl.to_clie_fd = toclientFifo_fd;
+	//create/open semaphore
+	
+	client_bl.log_sem = sem_open(semName, O_CREAT, S_IRWXU|S_IRWXG|S_IRWXO, 1); 
 	
 	//setting up server fifo to send join request
 	int serverfd = open(serverFifo, O_RDWR);
@@ -182,7 +235,8 @@ int main(int argc, char *argv[]){
 	}
 	pthread_join(client, NULL);
 	pthread_join(server, NULL);
-	
+	sem_unlink(semName);
+	sem_close(client_bl.log_sem);
 	
 	//reset the terminal and exit program
 	simpio_reset_terminal_mode();
