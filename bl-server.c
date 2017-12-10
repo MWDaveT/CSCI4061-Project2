@@ -82,9 +82,6 @@ int main(int argc, char *argv[]){
 		perror("Failed to open Join FIFO: ");
 	}
 	
-	
-	printf("I made it here\n");
-	
 	alarm(1);
 	
 	//main while loop
@@ -101,7 +98,7 @@ int main(int argc, char *argv[]){
 			if(err != 0){
 				printf("Failed to create from client thread: [%s]\n", strerror(err));
 			}
-			//server_write_who(&server);
+			
 		}
 		
 		//check all attached fifos for action
@@ -122,6 +119,6 @@ int main(int argc, char *argv[]){
 	sem_unlink(semName);
 	sem_close(server.log_sem);
 	pthread_cancel(write_who);
-	server_shutdown(&server);	printf("wft\n");
+	server_shutdown(&server);
 	return 0;
 }

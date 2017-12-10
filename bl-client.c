@@ -4,12 +4,14 @@
 #include "blather.h"
 
 who_t who_name;
-	char last[5] = "%last";
-	char who[4] = "%who";
-	char testwho[4];
+	char *who = "%who";
+	char *last = "%last";
+	
 	char testlast[5];
+	char testwho[4];
+	char count[4];
 	char logname[MAXPATH];
-	int complast, compwho;
+	int complast, compwho, num_mesg;
 	
 
 typedef struct{
@@ -26,15 +28,61 @@ simpio_t simpio_actual;
 simpio_t *simpio = &simpio_actual;
 pthread_t client, server;
 
+void read_mesg(int count, char *logname){
+	int  size, actmesg, i, log;
+	off_t offset;
+	//off_t cur_pos;
+	mesg_t read_mesg;
+	
+	
+	log = open(logname, O_RDONLY);
+	
+	lseek(log, (size_t)0, SEEK_CUR);
+	size = lseek(log, (size_t)0, SEEK_END);
+	
+	
+	actmesg = ((size-sizeof(who_t))/sizeof(mesg_t));
+	if(count > actmesg){
+		count = actmesg;
+	}
+	
+	offset = (count*sizeof(mesg_t));
+	lseek(log, -offset, SEEK_END);
+	
+	iprintf(simpio, "====================\n");
+	iprintf(simpio, "LAST %d MESSAGES\n", count);
+	for(i = 0; i<count; i++){
+		
+		read(log, &read_mesg, sizeof(mesg_t));
+		if(read_mesg.kind == 10){
+			iprintf(simpio, "[%s] : %s\n", read_mesg.name, read_mesg.body);
+		}
+		else if (read_mesg.kind == 20){
+			iprintf(simpio, "-- %s JOINED --\n", read_mesg.name);
+		}
+		else if (read_mesg.kind == 30){
+			iprintf(simpio, "-- %s DEPARTED --\n", read_mesg.name);
+		}
+		else if (read_mesg.kind == 40){
+			iprintf(simpio, "!!! server is shutting down !!!\n");
+		}
+		else if (read_mesg.kind == 50){
+			iprintf(simpio, "-- %s DISCONNECTED --\n", read_mesg.name);
+		}
+	}
+	iprintf(simpio, "====================\n");
+	close(log);
+	return;
+	
+}
+
 
 void *fromClient(void *client_bl){
 	blclient_t *bl_client = (blclient_t*) client_bl;
 	mesg_t send_mesg;
 	FILE *log;
-	
 	strcpy(logname, bl_client->server);
 	strcat(logname, ".log");
-	
 	
 	while(!simpio->end_of_input){
 		simpio_reset(simpio);
@@ -47,14 +95,11 @@ void *fromClient(void *client_bl){
 			strncpy(testwho, simpio->buf,4);
 			complast = (strcmp(last, testlast));
 			compwho = (strcmp(who, testwho));
-			if(complast == 0){
-				
-			}
-			else if(compwho == 0){
+	
+			if(compwho == 0){
 				
 				log = fopen(logname, "r");
-				sem_wait(bl_client->log_sem);
-					
+				sem_wait(bl_client->log_sem);	
 					fread(&who_name, sizeof(who_t), 1, log);
 				sem_post(bl_client->log_sem);
 				
@@ -64,6 +109,13 @@ void *fromClient(void *client_bl){
 					iprintf(simpio, "%d: %s\n", i, who_name.names[i]);
 				}
 				iprintf(simpio, "====================\n");				
+				
+			}
+			else if(complast == 0){
+				
+				strncpy(count, &simpio->buf[5], 4);
+				num_mesg = atoi(count);
+				read_mesg(num_mesg, logname);
 				
 			}
 			else{
@@ -77,6 +129,8 @@ void *fromClient(void *client_bl){
 					return NULL;
 					}
 				}
+				strcpy(testwho,"\0");
+				strcpy(testlast,"\0");
 			}
 	}
 	
@@ -212,6 +266,8 @@ int main(int argc, char *argv[]){
 	int serverfd = open(serverFifo, O_RDWR);
 	if (serverfd == -1){
 		perror("Open Server Join FIFO  error: ");
+		printf("Failed to open Server FIFO exiting program\n");
+		return 1;
 	}
 	err = write(serverfd, &join, sizeof(join));
 	if(err == -1){
