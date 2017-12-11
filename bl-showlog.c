@@ -8,7 +8,6 @@ int main(int argc, char *argv[]){
 	int log_fd, nbytes, i;
 	who_t who;
 	mesg_t read_mesg;
-	//char logfile[MAXPATH];
 	
 	if(argc <2){
 		printf("usage: %s <server name.log>\n", argv[0]);
@@ -29,11 +28,9 @@ int main(int argc, char *argv[]){
 		printf("%d: %s\n", i, who.names[i]);
 	}
 	printf("MESSAGES\n");
-	while(1){
+	while(nbytes!=0){
 		nbytes = read(log_fd, &read_mesg, sizeof(mesg_t));
-		if(nbytes == 0){
-			break;
-		}
+		
 		if(read_mesg.kind == 10){
 			printf("[%s] : %s\n", read_mesg.name, read_mesg.body);
 		}

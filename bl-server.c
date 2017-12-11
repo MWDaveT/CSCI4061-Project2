@@ -82,11 +82,11 @@ int main(int argc, char *argv[]){
 		perror("Failed to open Join FIFO: ");
 	}
 	
+	//alarm used for timing of ping messages and update users
 	alarm(1);
 	
 	//main while loop
 	while(!signaled){
-		
 		
 		//what to do for alarm - ping clients
 		if(alarmed == 1){
@@ -116,9 +116,12 @@ int main(int argc, char *argv[]){
 		}	
 		
 	}
-	sem_unlink(semName);
-	sem_close(server.log_sem);
+	
+	//clean up pthreads and semaphores on exit
+	
 	pthread_cancel(write_who);
 	server_shutdown(&server);
+	sem_unlink(semName);
+	sem_close(server.log_sem);
 	return 0;
 }

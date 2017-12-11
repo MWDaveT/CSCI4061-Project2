@@ -4,16 +4,15 @@
 #include "blather.h"
 
 who_t who_name;
-	char *who = "%who";
-	char *last = "%last";
+char *who = "%who";
+char *last = "%last";	
+char testlast[5];
+char testwho[4];
+char count[4];
+char logname[MAXPATH];
+int complast, compwho, num_mesg;
 	
-	char testlast[5];
-	char testwho[4];
-	char count[4];
-	char logname[MAXPATH];
-	int complast, compwho, num_mesg;
-	
-
+//structure to pass threaded function items needed
 typedef struct{
 		char name[MAXNAME];
 		char server[MAXPATH];
@@ -28,18 +27,31 @@ simpio_t simpio_actual;
 simpio_t *simpio = &simpio_actual;
 pthread_t client, server;
 
+
 void read_mesg(int count, char *logname){
+//function to read specified number of messages
+	
 	int  size, actmesg, i, log;
-	off_t offset;
-	//off_t cur_pos;
+	off_t offset, off_pos;
 	mesg_t read_mesg;
 	
 	
 	log = open(logname, O_RDONLY);
+	if(log == -1){
+		iprintf(simpio, "failed to open log file, try latter\n");
+		return;
+	}
 	
-	lseek(log, (size_t)0, SEEK_CUR);
+	off_pos = lseek(log, (size_t)0, SEEK_CUR);
+	if(off_pos == -1){
+		iprintf(simpio, "lseek failed\n");
+		return;
+	}
 	size = lseek(log, (size_t)0, SEEK_END);
-	
+	if(size == -1){
+		iprintf(simpio, "lseek failed\n");
+		return;
+	}
 	
 	actmesg = ((size-sizeof(who_t))/sizeof(mesg_t));
 	if(count > actmesg){
@@ -71,7 +83,10 @@ void read_mesg(int count, char *logname){
 		}
 	}
 	iprintf(simpio, "====================\n");
-	close(log);
+	err = close(log);
+	if(err == -1){
+		iprintf(simpio, "file close failed\n");
+	}
 	return;
 	
 }
@@ -150,6 +165,8 @@ void *fromServer(void *client_bl){
 	blclient_t *bl_client = (blclient_t*) client_bl;
 	mesg_t rec_mesg, ping_mesg;
 	
+	//read messages on to client fifo
+	//format output based on mesg.kind
 	while(1){
 		read(bl_client->to_clie_fd, &rec_mesg, sizeof(mesg_t));
 		if(rec_mesg.kind == 10){
@@ -171,6 +188,7 @@ void *fromServer(void *client_bl){
 		}
 		else
 		{
+			//reply to server ping message
 			ping_mesg.kind = BL_PING;
 			strcpy(ping_mesg.name, "\0");
 			strcpy(ping_mesg.body, "\0");
@@ -289,6 +307,8 @@ int main(int argc, char *argv[]){
 	if(err != 0){
 		printf("Failed to create from server thread: [%s]\n", strerror(err));
 	}
+	
+	//clean up threads and semaphores on exit
 	pthread_join(client, NULL);
 	pthread_join(server, NULL);
 	sem_unlink(semName);
