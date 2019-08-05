@@ -91,6 +91,7 @@ typedef struct{
 } simpio_t;
 
 
+
 // server.c
 client_t *server_get_client(server_t *server, int idx);
 void server_start(server_t *server, char *server_name, int perms);
@@ -106,7 +107,8 @@ int server_handle_client(server_t *server, int idx);
 void server_tick(server_t *server);
 void server_ping_clients(server_t *server);
 void server_remove_disconnected(server_t *server, int disconnect_secs);
-void server_write_who(server_t *server);
+//changed for threaded function
+void *server_write_who(void *server);
 void server_log_message(server_t *server, mesg_t *mesg);
 
 // simpio.c
